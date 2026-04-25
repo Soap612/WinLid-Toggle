@@ -9,12 +9,12 @@ if not exist %CSC% (
 )
 
 echo Compiling LidController...
-%CSC% /nologo /target:winexe /out:LidController_v1.2.exe /win32icon:AppIcon.ico /win32manifest:app.manifest Program.cs MainForm.cs PowerInterop.cs
+%CSC% /nologo /target:winexe /out:LidController_v1.4.exe /win32icon:AppIcon.ico /win32manifest:app.manifest Program.cs MainForm.cs PowerInterop.cs
 if %errorlevel% neq 0 (
     echo Compilation failed!
     pause
     exit /b %errorlevel%
 )
 
-echo Compilation succeeded: LidController_v1.2.exe
+echo Compilation succeeded: LidController_v1.4.exe
 pause

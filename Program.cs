@@ -30,7 +30,7 @@ namespace LidController
             }
             else
             {
-                IntPtr hWnd = FindWindow(null, "Lid Behavior Controller");
+                IntPtr hWnd = FindWindow(null, "Lid Behavior Controller v1.4");
                 if (hWnd != IntPtr.Zero)
                 {
                     SendMessage(hWnd, WM_SHOWME, IntPtr.Zero, IntPtr.Zero);

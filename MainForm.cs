@@ -13,18 +13,37 @@ namespace LidController
         private CheckBox chkRunOnStartup;
         private NotifyIcon trayIcon;
         private ContextMenu trayMenu;
+        private System.ComponentModel.IContainer components = null;
 
         private const string REG_KEY = @"Software\LidBehaviorController";
+        private bool startMinimized = false;
         
         public MainForm()
         {
+            string[] args = Environment.GetCommandLineArgs();
+            foreach (string arg in args)
+            {
+                if (arg.ToLower() == "-minimized")
+                    startMinimized = true;
+            }
             InitializeComponent();
             ApplySavedSettings();
         }
 
+        protected override void SetVisibleCore(bool value)
+        {
+            if (startMinimized)
+            {
+                value = false;
+                if (!this.IsHandleCreated) CreateHandle();
+            }
+            base.SetVisibleCore(value);
+        }
+
         private void InitializeComponent()
         {
-            this.Text = "Lid Behavior Controller v1.2";
+            this.components = new System.ComponentModel.Container();
+            this.Text = "Lid Behavior Controller v1.4";
             this.Size = new Size(380, 230);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -71,7 +90,7 @@ namespace LidController
             trayMenu.MenuItems.Add("-");
             trayMenu.MenuItems.Add("Exit", OnTrayExit);
 
-            trayIcon = new NotifyIcon();
+            trayIcon = new NotifyIcon(this.components);
             trayIcon.Text = "Lid Behavior Controller";
             trayIcon.Icon = this.Icon;
             trayIcon.ContextMenu = trayMenu;
@@ -79,6 +98,15 @@ namespace LidController
             trayIcon.DoubleClick += OnTrayShow;
 
             this.FormClosing += MainForm_FormClosing;
+            this.Resize += MainForm_Resize;
+        }
+
+        private void MainForm_Resize(object sender, EventArgs e)
+        {
+            if (this.WindowState == FormWindowState.Minimized)
+            {
+                this.Hide();
+            }
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -93,6 +121,7 @@ namespace LidController
 
         private void OnTrayShow(object sender, EventArgs e)
         {
+            startMinimized = false;
             this.Show();
             this.WindowState = FormWindowState.Normal;
             this.BringToFront();
@@ -287,22 +316,20 @@ namespace LidController
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            
-            // To start minimized via a command line arg
-            string[] args = Environment.GetCommandLineArgs();
-            bool startMinimized = false;
-            foreach(string arg in args)
-            {
-                if(arg.ToLower() == "-minimized") 
-                    startMinimized = true;
-            }
+        }
 
-            if(startMinimized)
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
             {
-                this.WindowState = FormWindowState.Minimized;
-                this.Hide();
-                this.ShowInTaskbar = false;
+                components.Dispose();
             }
+            if (disposing && trayIcon != null)
+            {
+                trayIcon.Visible = false;
+                trayIcon.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }
