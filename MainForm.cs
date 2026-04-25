@@ -10,6 +10,7 @@ namespace LidController
         private RadioButton rbStayAwake;
         private RadioButton rbDefault;
         private Label lblStatus;
+        private CheckBox chkRunOnStartup;
         private NotifyIcon trayIcon;
         private ContextMenu trayMenu;
 
@@ -23,12 +24,12 @@ namespace LidController
 
         private void InitializeComponent()
         {
-            this.Text = "Lid Behavior Controller";
-            this.Size = new Size(380, 200);
+            this.Text = "Lid Behavior Controller v1.2";
+            this.Size = new Size(380, 230);
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Icon = SystemIcons.Shield; // Simple default icon
+            this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
 
             Label lblDesc = new Label();
             lblDesc.Text = "Select your preferred laptop lid close behavior:";
@@ -57,6 +58,13 @@ namespace LidController
             lblStatus.Font = new Font(this.Font, FontStyle.Bold);
             this.Controls.Add(lblStatus);
 
+            chkRunOnStartup = new CheckBox();
+            chkRunOnStartup.Text = "Start automatically with Windows";
+            chkRunOnStartup.Location = new Point(30, 150);
+            chkRunOnStartup.Size = new Size(300, 20);
+            chkRunOnStartup.CheckedChanged += ChkRunOnStartup_CheckedChanged;
+            this.Controls.Add(chkRunOnStartup);
+
             // Tray Icon Setup
             trayMenu = new ContextMenu();
             trayMenu.MenuItems.Add("Show", OnTrayShow);
@@ -65,7 +73,7 @@ namespace LidController
 
             trayIcon = new NotifyIcon();
             trayIcon.Text = "Lid Behavior Controller";
-            trayIcon.Icon = SystemIcons.Information; // Use another basic icon
+            trayIcon.Icon = this.Icon;
             trayIcon.ContextMenu = trayMenu;
             trayIcon.Visible = true;
             trayIcon.DoubleClick += OnTrayShow;
@@ -117,7 +125,7 @@ namespace LidController
             if (scheme.HasValue)
             {
                 // Backup current values before editing, if we aren't already overriding them
-                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(REG_KEY))
+                using (RegistryKey key = Registry.LocalMachine.CreateSubKey(REG_KEY))
                 {
                     bool isAlreadyAwake = ((int)key.GetValue("IsAwakeMode", 0)) == 1;
 
@@ -152,7 +160,7 @@ namespace LidController
             Guid? scheme = PowerInterop.GetActiveScheme();
             if (scheme.HasValue)
             {
-                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(REG_KEY))
+                using (RegistryKey key = Registry.LocalMachine.CreateSubKey(REG_KEY))
                 {
                     string savedGuidStr = key.GetValue("SavedSchemeGuid") as string;
                     int defaultAc = 1; // 1 = Sleep
@@ -199,8 +207,9 @@ namespace LidController
             // Detach events to prevent triggering while setting UI state
             rbStayAwake.CheckedChanged -= RbMode_CheckedChanged;
             rbDefault.CheckedChanged -= RbMode_CheckedChanged;
+            if (chkRunOnStartup != null) chkRunOnStartup.CheckedChanged -= ChkRunOnStartup_CheckedChanged;
 
-            using (RegistryKey key = Registry.CurrentUser.CreateSubKey(REG_KEY))
+            using (RegistryKey key = Registry.LocalMachine.CreateSubKey(REG_KEY))
             {
                 int isAwake = (int)key.GetValue("IsAwakeMode", 0);
                 if (isAwake == 1)
@@ -216,9 +225,63 @@ namespace LidController
                 }
             }
 
+            try
+            {
+                System.Diagnostics.Process p = new System.Diagnostics.Process();
+                p.StartInfo.FileName = "schtasks";
+                p.StartInfo.Arguments = "/Query /TN \"LidControllerStartup\"";
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.CreateNoWindow = true;
+                p.Start();
+                p.WaitForExit();
+                if (p.ExitCode == 0)
+                {
+                    chkRunOnStartup.Checked = true;
+                }
+            }
+            catch { }
+
             // Reattach
             rbStayAwake.CheckedChanged += RbMode_CheckedChanged;
             rbDefault.CheckedChanged += RbMode_CheckedChanged;
+            if (chkRunOnStartup != null) chkRunOnStartup.CheckedChanged += ChkRunOnStartup_CheckedChanged;
+        }
+
+        private void ChkRunOnStartup_CheckedChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                string exePath = Application.ExecutablePath;
+                System.Diagnostics.Process p = new System.Diagnostics.Process();
+                p.StartInfo.FileName = "schtasks";
+                
+                if (chkRunOnStartup.Checked)
+                {
+                    p.StartInfo.Arguments = string.Format("/Create /TN \"LidControllerStartup\" /TR \"\\\"{0}\\\" -minimized\" /SC ONLOGON /RL HIGHEST /F", exePath);
+                }
+                else
+                {
+                    p.StartInfo.Arguments = "/Delete /TN \"LidControllerStartup\" /F";
+                }
+                
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.CreateNoWindow = true;
+                p.Start();
+                p.WaitForExit();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to update startup settings: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == Program.WM_SHOWME)
+            {
+                OnTrayShow(null, null);
+            }
+            base.WndProc(ref m);
         }
 
         protected override void OnLoad(EventArgs e)
